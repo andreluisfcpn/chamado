@@ -1,0 +1,185 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  password  String
+  role      Role
+  status    Status   @default(ACTIVE)
+  image     String?
+  companyId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company         Company        @relation(fields: [companyId], references: [id])
+  createdTickets  Ticket[]       @relation("CreatedTickets")
+  assignedTickets Ticket[]       @relation("AssignedTickets")
+  ticketUpdates   TicketUpdate[] @relation("SentUpdates")
+  ticketRatings   TicketRating[]
+  HashCode        HashCode?
+
+  @@map("users")
+}
+
+model Company {
+  id              String   @id @default(cuid())
+  name            String   @unique
+  status          Status   @default(ACTIVE)
+  isSoftwareOwner Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  users          User[]
+  tickets        Ticket[]
+  availableTypes CompanyTicketType[]
+
+  @@map("companies")
+}
+
+model TicketType {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  slaResponseTime Int?
+  slaSolutionTime Int?
+
+  assignedToCompanies CompanyTicketType[]
+  tickets             Ticket[]
+
+  @@map("ticket_types")
+}
+
+model CompanyTicketType {
+  companyId    String
+  ticketTypeId String
+  assignedAt   DateTime   @default(now())
+  assignedBy   String
+  company      Company    @relation(fields: [companyId], references: [id])
+  ticketType   TicketType @relation(fields: [ticketTypeId], references: [id])
+
+  @@id([companyId, ticketTypeId])
+  @@map("company_ticket_types")
+}
+
+model Ticket {
+  id           String         @id @default(cuid())
+  title        String
+  code         String         @unique
+  status       TicketStatus   @default(OPEN)
+  priority     TicketPriority @default(LOW)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  closedAt     DateTime?
+  authorId     String
+  companyId    String
+  ticketTypeId String
+  assigneeId   String?
+
+  slaResponseDeadline DateTime?
+  slaSolutionDeadline DateTime?
+  slaStatus           SLAStatus?
+  firstResponseAt     DateTime?
+
+  company    Company        @relation(fields: [companyId], references: [id])
+  ticketType TicketType     @relation(fields: [ticketTypeId], references: [id])
+  author     User           @relation("CreatedTickets", fields: [authorId], references: [id])
+  assignee   User?          @relation("AssignedTickets", fields: [assigneeId], references: [id])
+  ticketRatings   TicketRating[]
+  updates    TicketUpdate[]
+
+  @@map("tickets")
+}
+
+model TicketUpdate {
+  id        String              @id @default(cuid())
+  content   String
+  createdAt DateTime            @default(now())
+  ticketId  String
+  senderId  String
+  sender    User                @relation("SentUpdates", fields: [senderId], references: [id])
+  ticket    Ticket              @relation(fields: [ticketId], references: [id])
+  files     TicketUpdateFiles[]
+
+  @@map("ticket_updates")
+}
+
+model TicketUpdateFiles {
+  id             String       @id @default(cuid())
+  file           String
+  ticketUpdateId String
+  TicketUpdate   TicketUpdate @relation(fields: [ticketUpdateId], references: [id])
+
+  @@map("ticket_updates_files")
+}
+
+model HashCode {
+  id              String @id @default(cuid())
+  hashCode        String
+  hashCodeExpires String
+  status          Int    @default(0)
+  userId          String @unique
+  user            User   @relation(fields: [userId], references: [id])
+}
+
+model TicketRating {
+  id        String   @id @default(cuid())
+  ticketId  String
+  userId    String
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ticket Ticket @relation(fields: [ticketId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@unique([ticketId, userId])
+  @@map("ticket_ratings")
+}
+
+enum Role {
+  ADMINISTRADOR
+  ATENDENTE
+  ADMINISTRADOR_EMPRESA
+  CLIENTE
+}
+
+enum Status {
+  ACTIVE
+  INACTIVE
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  PENDING_CLIENT
+  CLOSED
+  CANCELED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum SLAStatus {
+  WITHIN_DEADLINE
+  NEARING_DEADLINE
+  BREACHED
+}
